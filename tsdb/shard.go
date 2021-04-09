@@ -1609,7 +1609,11 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name []byte, typ influxql.Dat
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
+	if s, err := time.ParseDuration("1m"); err == nil {
+		time.Sleep(s)
+	} else {
+		return err
+	}
 	fields = m.fields.Load().(map[string]*Field)
 	// Re-check field and type under write lock.
 	if f := fields[string(name)]; f != nil {
