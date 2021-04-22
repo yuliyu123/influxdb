@@ -377,21 +377,30 @@ func seeHelp(c *cobra.Command, args []string) {
 }
 
 func getConfigFromDefaultPath(configsPath string) config.Configs {
+	fmt.Printf("opening configs at %q", configsPath)
 	r, err := os.Open(configsPath)
-	if err != nil {
+	if os.IsNotExist(err) {
+		fmt.Printf("couldn't open configs at %q", configsPath)
 		return config.Configs{
 			config.DefaultConfig.Name: config.DefaultConfig,
 		}
+	} else if err != nil {
+		panic(err)
 	}
-	defer r.Close()
+	if err := r.Close(); err != nil {
+		panic(err)
+	}
 
 	cfgs, err := config.
 		NewLocalConfigSVC(configsPath, filepath.Dir(configsPath)).
 		ListConfigs()
-	if err != nil {
+	if os.IsNotExist(err) {
+		fmt.Printf("couldn't list configs at %q", configsPath)
 		return map[string]config.Config{
 			config.DefaultConfig.Name: config.DefaultConfig,
 		}
+	} else if err != nil {
+		panic(err)
 	}
 
 	return cfgs
