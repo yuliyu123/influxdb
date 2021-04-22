@@ -111,6 +111,7 @@ func (s ioStore) ListConfigs() (Configs, error) {
 	if err != nil {
 		return make(Configs), nil
 	}
+	defer r.Close()
 	return (baseRW{r: r}).ListConfigs()
 }
 
@@ -120,6 +121,7 @@ func (s ioStore) parsePreviousActive() (Config, error) {
 	if err != nil {
 		return Config{}, nil
 	}
+	defer r.Close()
 	return (baseRW{r: r}).parsePreviousActive()
 }
 
