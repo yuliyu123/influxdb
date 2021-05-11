@@ -29,6 +29,12 @@ workflows:
       - cross_build:
           requires:
             - godeps
+      - e2e-monitor-ci:
+          filters:
+            branches:
+              ignore: /pull\/[0-9]+/
+          requires:
+            - build
       - grace_daily:
           requires:
             - build
@@ -38,6 +44,12 @@ workflows:
       - litmus_integration:
           requires:
             - build
+          filters:
+            branches:
+              only: "2.0"
+      - share-testing-image:
+          requires:
+            - e2e-monitor-ci
           filters:
             branches:
               only: "2.0"
@@ -112,10 +124,6 @@ workflows:
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
 
-orbs:
-  # Needed to install chrome for e2e testing.
-  browser-tools: circleci/browser-tools@1.1
-
 commands:
   # Install system dependencies needed to run a native build of influxd
   install_core_deps:
@@ -145,21 +153,13 @@ commands:
       - when:
           condition: << parameters.publish_release >>
           steps:
-            - run:
-                name: Ensure not running from a fork
-                command: |
-                  if [ -n "$CIRCLE_PR_NUMBER" ]; then
-                    echo 'Error: release from fork detected, exiting!'
-                    exit 1
-                  fi
+            - bail_if_forked
             - run:
                 name: Import GPG key
                 command: |
                   echo -e "$GPG_PRIVATE_KEY" > private.key
                   gpg --batch --import private.key
-            - run:
-                name: Log into Quay
-                command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+            - quay_login
       - run:
           name: Set GOPATH
           # Machine executors use a different GOPATH from the cimg/go Docker executors.
@@ -291,6 +291,22 @@ commands:
             - run:
                 name: Publish release
                 command: goreleaser --debug release -p 1 --rm-dist --skip-validate
+
+  quay_login:
+    steps:
+      - run:
+          name: Log in to Quay
+          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+
+  bail_if_forked:
+    steps:
+      - run:
+          name: Exit if running from a fork
+          command: |
+            if [ -n "$CIRCLE_PR_NUMBER" ]; then
+              echo 'Error: Running from a fork, exiting!'
+              exit 1
+            fi
 
 jobs:
   #########################
@@ -490,7 +506,7 @@ jobs:
 
   build:
     docker:
-      - image: cimg/go:1.15.6-node
+      - image: cimg/go:1.15.6
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
@@ -523,6 +539,29 @@ jobs:
             - bin/linux/influx
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
+      - run:
+          name: Exit the job with success if running on a fork
+          command: |
+            if [ -n "$CIRCLE_PR_NUMBER" ]; then
+                circleci-agent step halt
+            fi
+      - setup_remote_docker:
+          version: 19.03.13
+          docker_layer_caching: true
+      - run:
+          name: Build the candidate docker image
+          command: |
+            cp ./bin/linux/{influx,influxd} .
+            docker build -f docker/influxd/Dockerfile -t quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} .
+            docker save -o docker-image.tar quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
+      - persist_to_workspace:
+          root: .
+          paths:
+            - docker-image.tar
+      - quay_login
+      - run:
+          name: Push the candidate image to quay
+          command: docker push quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1}
 
   cross_build:
     machine:
@@ -590,6 +629,24 @@ jobs:
   ### e2e/integration test jobs ###
   #################################
 
+  e2e-monitor-ci:
+    docker:
+      - image: cimg/go:1.15.6
+    steps:
+      - checkout
+      - run:
+          name: Run the tests
+          command: API_KEY=${MONITOR_CI_API_KEY} MONITOR_CI_BRANCH="wb-ui-branch" OSS_SHA=${CIRCLE_SHA1} ./scripts/ci/run-monitor-ci-tests.bash
+      - store_artifacts:
+          path: monitor-ci/test-artifacts/results/build-oss-image
+          destination: test_artifacts/results/build-oss-image
+      - store_artifacts:
+          path: monitor-ci/test-artifacts/results/oss-e2e
+          destination: test_artifacts/results/oss-e2e
+      - store_artifacts:
+          path: monitor-ci/test-artifacts/results/shared
+          destination: test_artifacts/results/shared
+
   litmus_daily:
     machine: true
     steps:
@@ -642,3 +699,18 @@ jobs:
       - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/grace/test-results/grace-results quay.io/influxdb/grace:daily
       - store_artifacts:
           path: ~/project
+
+  share-testing-image:
+    machine:
+      image: ubuntu-2004:202010-01
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+    steps:
+      - attach_workspace:
+          at: /home/circleci/go/src/github.com/influxdata/influxdb
+      - quay_login
+      - run:
+          name: Push the image to Quay
+          command: |
+            docker load < docker-image.tar
+            docker tag quay.io/influxdb/oss-acceptance:${CIRCLE_SHA1} quay.io/influxdb/oss-acceptance:latest
+            docker push quay.io/influxdb/oss-acceptance:2.0
