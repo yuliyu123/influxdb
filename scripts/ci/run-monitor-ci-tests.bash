@@ -30,6 +30,8 @@ set -eu -o pipefail
 # Currently, only running e2e tests against the latest from the UI master branch is supported. 
 #
 # Required Env Vars for Running from the influxdb OSS Repository:
+# - API_KEY: the CircleCI API access key
+# - UI_BRANCH: the branch of the UI repo we're running against - for OSS release branches, this will be the corresponding branch in the UI repo.
 # - OSS_SHA: the influxdb repo commit SHA we're running against
 # - MONITOR_CI_BRANCH: the branch of the monitor-ci repo to start a pipeline with (usually 'master')
 ########################
