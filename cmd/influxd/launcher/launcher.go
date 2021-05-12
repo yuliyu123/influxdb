@@ -43,7 +43,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/nats"
-	notebookTransport "github.com/influxdata/influxdb/v2/notebooks/transport"
+	"github.com/influxdata/influxdb/v2/notebooks"
 	endpointservice "github.com/influxdata/influxdb/v2/notification/endpoint/service"
 	ruleservice "github.com/influxdata/influxdb/v2/notification/rule/service"
 	"github.com/influxdata/influxdb/v2/pkger"
@@ -897,7 +897,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 	}
 
-	notebookServer := notebookTransport.NewNotebookHandler(m.log.With(zap.String("handler", "notebooks")))
+	notebookServer := notebooks.NewNotebookTransport(m.log.With(zap.String("handler", "notebooks")))
 
 	platformHandler := http.NewPlatformHandler(
 		m.apibackend,

@@ -7,6 +7,10 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
+type contextKey string
+
+const ContextKeyOrgID = contextKey("orgID")
+
 // Notebook represents all visual and query data for a notebook.
 type Notebook struct {
 	OrgID     platform.ID  `json:"orgID"`

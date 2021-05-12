@@ -1,4 +1,4 @@
-package transport
+package service
 
 import (
 	"encoding/json"
@@ -7,13 +7,12 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
-	notebooks "github.com/influxdata/influxdb/v2/notebooks/service"
 )
 
 // these functions are for generating demo data for development purposes.
 
-func demoNotebook(orgID, notebookID platform.ID) notebooks.Notebook {
-	return notebooks.Notebook{
+func demoNotebook(orgID, notebookID platform.ID) Notebook {
+	return Notebook{
 		OrgID:     orgID,
 		ID:        notebookID,
 		Name:      "demo notebook",
@@ -23,13 +22,13 @@ func demoNotebook(orgID, notebookID platform.ID) notebooks.Notebook {
 	}
 }
 
-func demoNotebooks(n int, orgID platform.ID) []notebooks.Notebook {
-	o := []notebooks.Notebook{}
+func demoNotebooks(n int, orgID platform.ID) []Notebook {
+	o := []Notebook{}
 
 	for i := 1; i <= n; i++ {
 		id, _ := platform.IDFromString(strconv.Itoa(1000000000000000 + i))
 
-		o = append(o, notebooks.Notebook{
+		o = append(o, Notebook{
 			OrgID:     orgID,
 			ID:        *id,
 			Name:      fmt.Sprintf("demo notebook %d", i),
